@@ -25,15 +25,14 @@ void Error(char* str)
     exit(EXIT_FAILURE);
 }
 
-sem_t gSema;
-sem_t gChatSema;
-unsigned char gChatData[1024];
-int gDataSize = 0;
+sem_t gRoomSema;
+sem_t gChatSenderSema;
+sem_t gChatReceiverSema;
+unsigned char gChatData[2048];
+unsigned int gDataSize = 0;
 int gSender = 0;
 char bTrue = 1;
 char bFalse = 0;
-
-
 
 int Read(int fd, char* buffer, int dataLen)
 {
@@ -59,68 +58,75 @@ void* ChatClientHandler(void* arg)
     struct ClientInfo* ci = (struct ClientInfo*)arg;
     int *clientSock = ci->sock;
     unsigned int dataLen;
-    char buffer[1024]; // maybe memory leak can be occurred for socket description number
+    char buffer[2048]; // maybe memory leak can be occurred for socket description number
     int ret;
 
-    DEBUG_PRINT("Chat Client %x %d\n", clientSock, *clientSock);
+    DEBUG_PRINT("Chat Client %p %d\n", clientSock, *clientSock);
     while ((ret = Read(*clientSock, (char*)&dataLen, 4)) == bTrue)
     {
-        if (dataLen > 1024)
-            dataLen = 1024;
+        printf("receive dataLen == %d\n", dataLen);
+        if (dataLen > 2048)
+            dataLen = 2048;
 
         ret = Read(*clientSock, buffer, dataLen);
         if (ret <= 0)
             break;
 
-        memcpy(gChatData, buffer, dataLen);
-        gDataSize = dataLen;
-        gSender = *clientSock;
-        // or it can be 0xffff something like...
-        if (strncmp(buffer, "bye", 3) == 0)
+        // check 0xdeadf00d and exit with bof vulnerability
+        if (strncmp(buffer, "\xde\xad\xf0\x0d", 4)  == 0)
+        {
+            break;
+        }
+
+        if (strncmp(buffer, "/bye", 4) == 0) // not exit
         {
             DEBUG_PRINT("bye received\n");
             send(*clientSock, "\xde\xad\xf0\x0d", 4, 0);
             ci->isClosed = bTrue;
-            sem_post(&gChatSema);
-            break;
+            continue;
         }
-        sem_post(&gChatSema);
+
+        memcpy(gChatData, buffer, dataLen);
+        gDataSize = dataLen;
+        gSender = *clientSock;
+        sem_post(&gChatSenderSema);
+        sem_wait(&gChatReceiverSema);
     }
 
-    // Socket Closed
-    if (ret == bFalse)
+    sem_post(&gChatSenderSema);
+
+    // client disconnectted unconditionally
+    if (ret == 0)
     {
         ci->isClosed = bTrue;
         DEBUG_PRINT("socket close chat server\n");
         //fflush(stdout);
-        close(*clientSock);
-        *clientSock = -1;
-        sem_post(&gChatSema);
     }
-    // recv error
+    // recv error, ret < 0
     else if (ci->isClosed == bFalse)
     {
         perror("recv failed!\n");
-        ci->isClosed = 1;
-        sem_post(&gChatSema);
+        ci->isClosed = bTrue;
     }
+    // else: client sent '/bye'
 }
 
 int ChatHandler(int* sock1, int* sock2)
 {
-    int chatIdx = 0;
-    unsigned char chat[65536];
+    //int chatIdx = 0;
+    unsigned char chat[1024];
     struct ClientInfo ci1;
     struct ClientInfo ci2;
     pthread_t threadId;
-    sem_init(&gChatSema, 0, 0);
+    sem_init(&gChatSenderSema, 0, 0);
+    sem_init(&gChatReceiverSema, 0, 0);
 
     ci1.sock = sock1;
     ci1.isClosed = bFalse;
     ci2.sock = sock2;
     ci2.isClosed = bFalse;
 
-    DEBUG_PRINT("ChatHandler %x %d %x %d\n", sock1, *sock1, sock2, *sock2);
+    DEBUG_PRINT("ChatHandler %p %d %p %d\n", sock1, *sock1, sock2, *sock2);
     if (pthread_create(&threadId, NULL, ChatClientHandler, (void*)&ci1) < 0)
         Error("pthread_create ChatClient 1 failed!");
 
@@ -129,8 +135,8 @@ int ChatHandler(int* sock1, int* sock2)
 
     while (ci1.isClosed == bFalse || ci2.isClosed == bFalse) // while sock1, sock2 alive
     {
-        sem_wait(&gChatSema);
-        memcpy(&chat[chatIdx], gChatData, gDataSize);
+        sem_wait(&gChatSenderSema);
+        memcpy(chat, gChatData, gDataSize);
 
         if (gSender == *sock1)
         {
@@ -138,7 +144,7 @@ int ChatHandler(int* sock1, int* sock2)
             if (*sock2 != -1 && ci2.isClosed == bFalse)
             {
                 send(*sock2, "Remote: ", 8, 0);
-                send(*sock2, &chat[chatIdx], strlen(&chat[chatIdx]), 0);
+                send(*sock2, chat, gDataSize, 0);
                 send(*sock2, "\n", 1, 0);
             }
         }
@@ -148,18 +154,19 @@ int ChatHandler(int* sock1, int* sock2)
             if (*sock1 != -1 && ci1.isClosed == bFalse)
             {
                 send(*sock1, "Remote: ", 8, 0);
-                send(*sock1, &chat[chatIdx], strlen(&chat[chatIdx]), 0);
+                send(*sock1, chat, gDataSize, 0);
                 send(*sock1, "\n", 1, 0);
             }
         }
         // TODO: if we can't assume the socket fd number, then we need to write
         // fd number at this point
-        chatIdx += gDataSize;
+        sem_post(&gChatReceiverSema);
     }
 
     DEBUG_PRINT("chat ended!\n");
 
-    sem_destroy(&gChatSema);
+    sem_destroy(&gChatSenderSema);
+    sem_destroy(&gChatReceiverSema);
 }
 
 int MakeRoom(int clientSock, char* roomName)
@@ -168,7 +175,7 @@ int MakeRoom(int clientSock, char* roomName)
     struct Room* room = NULL;
     DEBUG_PRINT("make room %s\n", roomName);
 
-    sem_wait(&gSema);
+    sem_wait(&gRoomSema);
     // TODO: need to change 1, 0
     if (FindRoom(roomName) != NULL)
     {
@@ -181,7 +188,7 @@ int MakeRoom(int clientSock, char* roomName)
         if ((room = InsertRoom(clientSock, roomName)) == NULL)
             result = bFalse;
     }
-    sem_post(&gSema);
+    sem_post(&gRoomSema);
 
     send(clientSock, &result, 1, 0);
     if (result == bTrue)
@@ -192,12 +199,12 @@ int MakeRoom(int clientSock, char* roomName)
             DEBUG_PRINT("wait joiner\n");
             sleep(1);
 
-            sem_wait(&gSema);
+            sem_wait(&gRoomSema);
             if (room->connectionState == 1)
             {
                 DEBUG_PRINT("joined!\n");
                 room->connectionState = 2;
-                sem_post(&gSema);
+                sem_post(&gRoomSema);
                 break;
             }
 
@@ -209,7 +216,7 @@ int MakeRoom(int clientSock, char* roomName)
                 result = bFalse;
             }
 
-            sem_post(&gSema);
+            sem_post(&gRoomSema);
         }
 
         send(clientSock, &result, 1, 0);
@@ -224,7 +231,7 @@ int JoinRoom(int clientSock, char* roomName)
     char result = bFalse;
     DEBUG_PRINT("join room %s\n", roomName);
 
-    sem_wait(&gSema);
+    sem_wait(&gRoomSema);
     if (room = FindRoom(roomName))
     {
         DEBUG_PRINT("room found!\n");
@@ -235,7 +242,7 @@ int JoinRoom(int clientSock, char* roomName)
             result = bTrue;
         }
     }
-    sem_post(&gSema);
+    sem_post(&gRoomSema);
 
     send(clientSock, &result, 1, 0);
 
@@ -262,7 +269,7 @@ int JoinRoom(int clientSock, char* roomName)
 
             if (fork() == 0)
             {
-                DEBUG_PRINT("forkd with sockets %x %d %x %d\n", &ownerSock, ownerSock, &clientSock, clientSock);
+                DEBUG_PRINT("forkd with sockets %p %d %p %d\n", &ownerSock, ownerSock, &clientSock, clientSock);
                 ChatHandler(&ownerSock, &clientSock);
 
                 if (ownerSock != -1)
@@ -303,7 +310,7 @@ void* ClientHandler(void* argv)
         buffer[readSize] = '\0';
         if (buffer[0] == 1)
         {
-            DEBUG_PRINT("make socket address %x %d \n", &clientSock, clientSock);
+            DEBUG_PRINT("make socket address %p %d \n", &clientSock, clientSock);
             if ((result = MakeRoom(clientSock, &buffer[1])) == bTrue)
             {
                 DEBUG_PRINT("make success\n");
@@ -312,7 +319,7 @@ void* ClientHandler(void* argv)
         }
         else if (buffer[0] == 2)
         {
-            DEBUG_PRINT("join socket address %x %d\n", &clientSock, clientSock);
+            DEBUG_PRINT("join socket address %p %d\n", &clientSock, clientSock);
             if ((result = JoinRoom(clientSock, &buffer[1])) == bTrue)
             {
                 DEBUG_PRINT("join success\n");
@@ -325,7 +332,7 @@ void* ClientHandler(void* argv)
 
     if (readSize == 0)
     {
-        DEBUG_PRINT("socket close %x\n", &clientSock);
+        DEBUG_PRINT("socket close %p\n", &clientSock);
         close(clientSock);
         clientSock = -1;
     }
@@ -343,7 +350,7 @@ int main()
     int addrLen = sizeof(addr);
     pthread_t threadId;
 
-    sem_init(&gSema, 0, 1);
+    sem_init(&gRoomSema, 0, 1);
 
     if ((serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         Error("socket failed!");
@@ -373,7 +380,7 @@ int main()
             Error("pthread_create failed!");
     }
 
-    sem_destroy(&gSema);
+    sem_destroy(&gRoomSema);
 
     return 0;
 }

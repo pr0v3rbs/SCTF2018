@@ -30,8 +30,8 @@ void PrintLogo()
     puts("            | |    | |__   __ _| |_            ");
     puts("            | |    | '_ \\ / _` | __|           ");
     puts("            | |____| | | | (_| | |_            ");
-    puts("             \\_____|_| |_|\\__,_|\\__|_          ");
-    puts("             / ____|               (_)         ");
+    puts("             \\_____|_| |_|\\__,_|\\__|           ");
+    puts("             / ____|                           ");
     puts("            | (___   ___ _ ____   ___  ___ ___ ");
     puts("             \\___ \\ / _ \\ '__\\ \\ / / |/ __/ _ \\");
     puts("             ____) |  __/ |   \\ V /| | (_|  __/");
@@ -88,9 +88,9 @@ void* ChatReceiver(void* arg)
     unsigned char buffer[256];
 
     // BOF vulnerability!!!
-    while ((readSize = recv(gServerSock, buffer, 1024, 0)) > 0)
+    while ((readSize = read(gServerSock, buffer, 1024)) > 0)
     {
-        if (buffer[0] == 0xde && buffer[1] == 0xad && buffer[2] == 0xf0 && buffer[3] == 0x0d)
+        if (memcmp(buffer, "\xde\xad\xf0\x0d", 4) == 0)
         {
             break;
         }
@@ -113,12 +113,15 @@ void Chat()
     {
         readLen = ReadLine(&buffer[4], 1024);
         *((int*)&buffer[0]) = readLen;
-        send(gServerSock, buffer, readLen + 4, 0);
-        if (strncmp(&buffer[4], "bye", 3) == 0)
+        write(gServerSock, buffer, readLen + 4);
+        if (strncmp(&buffer[4], "/bye", 4) == 0)
             break;
     }
 
     pthread_join(threadId, NULL);
+
+    // send 0xdeadf00d to server
+    write(gServerSock, "\x04\x00\x00\x00\xde\xad\xf0\x0d", 8);
 
     puts("=====Chat Ended=====");
 
@@ -135,13 +138,13 @@ int MakeRoom()
     readLen = ReadLine(&buffer[1], 255);
 
     buffer[0] = 1;
-    send(gServerSock, buffer, readLen + 1, 0);
-    recv(gServerSock, buffer, 1, 0);
+    write(gServerSock, buffer, readLen + 10);
+    read(gServerSock, buffer, 1);
 
     if (buffer[0] == bTrue)
     {
         puts("wait 10 seconds...");
-        recv(gServerSock, buffer, 1, 0);
+        read(gServerSock, buffer, 10);
         if (buffer[0] == bTrue)
         {
             puts("Someone joined!");
@@ -167,7 +170,7 @@ int JoinRoom()
     readLen = ReadLine(&buffer[1], 255);
 
     buffer[0] = 2;
-    send(gServerSock, buffer, readLen + 1, 0);
+    write(gServerSock, buffer, readLen + 1);
     read(gServerSock, buffer, 1);
 
     if (buffer[0] == bTrue)
@@ -189,14 +192,16 @@ int main()
     scmp_filter_ctx ctx;
     ctx = seccomp_init(SCMP_ACT_KILL);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigreturn), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(socket), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(connect), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(send), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(recv), 0);
+    //seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(send), 0);
+    //seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(recv), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit), 0);
 
-    seccomp_load(ctx);
+    //seccomp_load(ctx);
 
     PrintLogo();
 
