@@ -11,6 +11,7 @@
 int bTrue = 1;
 int bFalse = 0;
 int gServerSock = 0;
+unsigned char gBuffer[1024 + 4];
 
 void Error(char* str)
 {
@@ -100,7 +101,6 @@ void* ChatReceiver(void* arg)
 
 void Chat()
 {
-    char buffer[1028];
     int readLen;
     pthread_t threadId;
 
@@ -111,10 +111,10 @@ void Chat()
 
     while (bTrue)
     {
-        readLen = ReadLine(&buffer[4], 1024);
-        *((int*)&buffer[0]) = readLen;
-        write(gServerSock, buffer, readLen + 4);
-        if (strncmp(&buffer[4], "/bye", 4) == 0)
+        readLen = ReadLine(&gBuffer[4], 1024);
+        *((int*)&gBuffer[0]) = readLen;
+        write(gServerSock, gBuffer, readLen + 4);
+        if (strncmp(&gBuffer[4], "/bye", 4) == 0)
             break;
     }
 
@@ -131,21 +131,20 @@ void Chat()
 
 int MakeRoom()
 {
-    char buffer[256];
     int readLen = 0;
 
     write(1, "Room Name>>", strlen("Room Name>>"));
-    readLen = ReadLine(&buffer[1], 255);
+    readLen = ReadLine(&gBuffer[1], 255);
 
-    buffer[0] = 1;
-    write(gServerSock, buffer, readLen + 10);
-    read(gServerSock, buffer, 1);
+    gBuffer[0] = 1;
+    write(gServerSock, gBuffer, readLen + 10);
+    read(gServerSock, gBuffer, 1);
 
-    if (buffer[0] == bTrue)
+    if (gBuffer[0] == bTrue)
     {
         puts("wait 10 seconds...");
-        read(gServerSock, buffer, 10);
-        if (buffer[0] == bTrue)
+        read(gServerSock, gBuffer, 10);
+        if (gBuffer[0] == bTrue)
         {
             puts("Someone joined!");
             Chat();
@@ -163,17 +162,16 @@ int MakeRoom()
 
 int JoinRoom()
 {
-    char buffer[256];
     int readLen = 0;
 
     write(1, "Room Name>>", strlen("Room Name>>"));
-    readLen = ReadLine(&buffer[1], 255);
+    readLen = ReadLine(&gBuffer[1], 255);
 
-    buffer[0] = 2;
-    write(gServerSock, buffer, readLen + 1);
-    read(gServerSock, buffer, 1);
+    gBuffer[0] = 2;
+    write(gServerSock, gBuffer, readLen + 1);
+    read(gServerSock, gBuffer, 1);
 
-    if (buffer[0] == bTrue)
+    if (gBuffer[0] == bTrue)
     {
         puts("Join room succeeded");
         Chat();
@@ -196,9 +194,8 @@ int main()
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(connect), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);
-    //seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(send), 0);
-    //seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(recv), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mmap), 0); // mmap , unmap, etc..?
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit), 0);
 
     //seccomp_load(ctx);

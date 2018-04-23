@@ -58,7 +58,7 @@ void* ChatClientHandler(void* arg)
     struct ClientInfo* ci = (struct ClientInfo*)arg;
     int *clientSock = ci->sock;
     unsigned int dataLen;
-    char buffer[2048]; // maybe memory leak can be occurred for socket description number
+    char buffer[2048];
     int ret;
 
     DEBUG_PRINT("Chat Client %p %d\n", clientSock, *clientSock);
@@ -113,7 +113,7 @@ void* ChatClientHandler(void* arg)
 
 int ChatHandler(int* sock1, int* sock2)
 {
-    //int chatIdx = 0;
+    unsigned char name[128];
     unsigned char chat[1024];
     struct ClientInfo ci1;
     struct ClientInfo ci2;
@@ -143,7 +143,8 @@ int ChatHandler(int* sock1, int* sock2)
             // check socket alive
             if (*sock2 != -1 && ci2.isClosed == bFalse)
             {
-                send(*sock2, "Remote: ", 8, 0);
+                sprintf(name, "Remote%d: ", *sock1);
+                send(*sock2, name, strlen(name), 0);
                 send(*sock2, chat, gDataSize, 0);
                 send(*sock2, "\n", 1, 0);
             }
@@ -153,7 +154,8 @@ int ChatHandler(int* sock1, int* sock2)
             // check socket alive
             if (*sock1 != -1 && ci1.isClosed == bFalse)
             {
-                send(*sock1, "Remote: ", 8, 0);
+                sprintf(name, "Remote%d: ", *sock2);
+                send(*sock1, name, strlen(name), 0);
                 send(*sock1, chat, gDataSize, 0);
                 send(*sock1, "\n", 1, 0);
             }
