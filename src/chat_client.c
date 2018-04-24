@@ -11,6 +11,7 @@
 int bTrue = 1;
 int bFalse = 0;
 int gServerSock = 0;
+int gSeccompFuncs[20] = {SCMP_SYS(rt_sigreturn), SCMP_SYS(socket), SCMP_SYS(connect), SCMP_SYS(read), SCMP_SYS(write), SCMP_SYS(fstat), SCMP_SYS(clone), SCMP_SYS(exit)};
 unsigned char gBuffer[2048 + 4];
 
 void Error(char* str)
@@ -99,22 +100,6 @@ void* ChatReceiver(void* arg)
         }
         write(1, buffer, readSize);
     }
-
-    /**((int*)&gBuffer[0]) = 2048;
-    for (int i = 0; i < 1024; i++)
-        gBuffer[i + 4] = 'a';
-    for (int i = 0; i < 128; i++)
-        gBuffer[i + 4 + 1024] = 'b';
-    for (int i = 0; i < 8; i++)
-        gBuffer[i + 1024 + 4 + 128] = 'c';
-    for (int i = 0; i < 8; i++)
-        gBuffer[i + 1024 + 4 + 8 + 128] = 'd';
-    for (int i = 0; i < 8; i++)
-        gBuffer[i + 1024 + 4 + 16 + 128] = 'e';
-    for (int i = 0; i < 8; i++)
-        gBuffer[i + 1024 + 4 + 24 + 128] = 'f';
-
-    write(gServerSock, gBuffer, 2052);*/
 }
 
 void Chat()
@@ -206,22 +191,9 @@ int main()
     char buf[10];
     int menu = 0;
     int isExit = bFalse;
-    scmp_filter_ctx ctx;
 
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stdout, NULL, _IONBF, 0);
-
-    ctx = seccomp_init(SCMP_ACT_KILL);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigreturn), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(socket), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(connect), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(mmap), 0); // mmap , unmap, etc..?
-    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit), 0);
-
-    //seccomp_load(ctx);
 
     PrintLogo();
 
