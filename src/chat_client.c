@@ -11,7 +11,7 @@
 int bTrue = 1;
 int bFalse = 0;
 int gServerSock = 0;
-unsigned char gBuffer[1024 + 4];
+unsigned char gBuffer[2048 + 4];
 
 void Error(char* str)
 {
@@ -44,6 +44,7 @@ void PrintMenu()
     puts("1. Make room");
     puts("2. Join room");
     puts("3. Exit");
+    printf(">>");
 }
 
 int ReadLine(char* buffer, int maxLen)
@@ -76,6 +77,7 @@ void Connect()
     memset(&addr, 0, sizeof(addr));
 
     addr.sin_family = AF_INET;
+
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(31337);
 
@@ -97,6 +99,22 @@ void* ChatReceiver(void* arg)
         }
         write(1, buffer, readSize);
     }
+
+    /**((int*)&gBuffer[0]) = 2048;
+    for (int i = 0; i < 1024; i++)
+        gBuffer[i + 4] = 'a';
+    for (int i = 0; i < 128; i++)
+        gBuffer[i + 4 + 1024] = 'b';
+    for (int i = 0; i < 8; i++)
+        gBuffer[i + 1024 + 4 + 128] = 'c';
+    for (int i = 0; i < 8; i++)
+        gBuffer[i + 1024 + 4 + 8 + 128] = 'd';
+    for (int i = 0; i < 8; i++)
+        gBuffer[i + 1024 + 4 + 16 + 128] = 'e';
+    for (int i = 0; i < 8; i++)
+        gBuffer[i + 1024 + 4 + 24 + 128] = 'f';
+
+    write(gServerSock, gBuffer, 2052);*/
 }
 
 void Chat()
@@ -119,6 +137,7 @@ void Chat()
     }
 
     pthread_join(threadId, NULL);
+    sleep(1);
 
     // send 0xdeadf00d to server
     write(gServerSock, "\x04\x00\x00\x00\xde\xad\xf0\x0d", 8);
@@ -133,11 +152,11 @@ int MakeRoom()
 {
     int readLen = 0;
 
-    write(1, "Room Name>>", strlen("Room Name>>"));
+    printf("Room Name>>");
     readLen = ReadLine(&gBuffer[1], 255);
 
     gBuffer[0] = 1;
-    write(gServerSock, gBuffer, readLen + 10);
+    write(gServerSock, gBuffer, readLen + 1);
     read(gServerSock, gBuffer, 1);
 
     if (gBuffer[0] == bTrue)
@@ -164,7 +183,7 @@ int JoinRoom()
 {
     int readLen = 0;
 
-    write(1, "Room Name>>", strlen("Room Name>>"));
+    printf("Room Name>>");
     readLen = ReadLine(&gBuffer[1], 255);
 
     gBuffer[0] = 2;
@@ -188,6 +207,10 @@ int main()
     int menu = 0;
     int isExit = bFalse;
     scmp_filter_ctx ctx;
+
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     ctx = seccomp_init(SCMP_ACT_KILL);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigreturn), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(socket), 0);

@@ -56,19 +56,18 @@ int Read(int fd, char* buffer, int dataLen)
 void* ChatClientHandler(void* arg)
 {
     struct ClientInfo* ci = (struct ClientInfo*)arg;
-    int *clientSock = ci->sock;
+    int clientSock = ci->sock;
     unsigned int dataLen;
     char buffer[2048];
     int ret;
 
-    DEBUG_PRINT("Chat Client %p %d\n", clientSock, *clientSock);
-    while ((ret = Read(*clientSock, (char*)&dataLen, 4)) == bTrue)
+    while ((ret = Read(clientSock, (char*)&dataLen, 4)) == bTrue)
     {
-        printf("receive dataLen == %d\n", dataLen);
+        DEBUG_PRINT("receive dataLen == %d\n", dataLen);
         if (dataLen > 2048)
             dataLen = 2048;
 
-        ret = Read(*clientSock, buffer, dataLen);
+        ret = Read(clientSock, buffer, dataLen);
         if (ret <= 0)
             break;
 
@@ -81,14 +80,14 @@ void* ChatClientHandler(void* arg)
         if (strncmp(buffer, "/bye", 4) == 0) // not exit
         {
             DEBUG_PRINT("bye received\n");
-            send(*clientSock, "\xde\xad\xf0\x0d", 4, 0);
+            send(clientSock, "\xde\xad\xf0\x0d", 4, 0);
             ci->isClosed = bTrue;
             continue;
         }
 
         memcpy(gChatData, buffer, dataLen);
         gDataSize = dataLen;
-        gSender = *clientSock;
+        gSender = clientSock;
         sem_post(&gChatSenderSema);
         sem_wait(&gChatReceiverSema);
     }
@@ -105,7 +104,7 @@ void* ChatClientHandler(void* arg)
     // recv error, ret < 0
     else if (ci->isClosed == bFalse)
     {
-        perror("recv failed!\n");
+        perror("recv failed!");
         ci->isClosed = bTrue;
     }
     // else: client sent '/bye'
@@ -121,9 +120,9 @@ int ChatHandler(int* sock1, int* sock2)
     sem_init(&gChatSenderSema, 0, 0);
     sem_init(&gChatReceiverSema, 0, 0);
 
-    ci1.sock = sock1;
+    ci1.sock = *sock1;
     ci1.isClosed = bFalse;
-    ci2.sock = sock2;
+    ci2.sock = *sock2;
     ci2.isClosed = bFalse;
 
     DEBUG_PRINT("ChatHandler %p %d %p %d\n", sock1, *sock1, sock2, *sock2);
@@ -137,27 +136,28 @@ int ChatHandler(int* sock1, int* sock2)
     {
         sem_wait(&gChatSenderSema);
         memcpy(chat, gChatData, gDataSize);
+	DEBUG_PRINT("gDataSize = %d\n", gDataSize);
 
-        if (gSender == *sock1)
+        if (gSender == ci1.sock)
         {
             // check socket alive
-            if (*sock2 != -1 && ci2.isClosed == bFalse)
+            if (ci2.isClosed == bFalse)
             {
-                sprintf(name, "Remote%d: ", *sock1);
-                send(*sock2, name, strlen(name), 0);
-                send(*sock2, chat, gDataSize, 0);
-                send(*sock2, "\n", 1, 0);
+                sprintf(name, "Remote%d: ", ci1.sock);
+                send(ci2.sock, name, strlen(name), 0);
+                send(ci2.sock, chat, gDataSize, 0);
+                send(ci2.sock, "\n", 1, 0);
             }
         }
-        else if (gSender == *sock2)
+        else if (gSender == ci2.sock)
         {
             // check socket alive
-            if (*sock1 != -1 && ci1.isClosed == bFalse)
+            if (ci1.isClosed == bFalse)
             {
-                sprintf(name, "Remote%d: ", *sock2);
-                send(*sock1, name, strlen(name), 0);
-                send(*sock1, chat, gDataSize, 0);
-                send(*sock1, "\n", 1, 0);
+                sprintf(name, "Remote%d: ", ci2.sock);
+                send(ci1.sock, name, strlen(name), 0);
+                send(ci1.sock, chat, gDataSize, 0);
+                send(ci1.sock, "\n", 1, 0);
             }
         }
         // TODO: if we can't assume the socket fd number, then we need to write

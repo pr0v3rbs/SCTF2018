@@ -3,7 +3,7 @@
 
 struct ClientInfo
 {
-    int* sock;
+    int sock;
     int isClosed;
 };
 
