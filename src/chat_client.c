@@ -11,7 +11,6 @@
 int bTrue = 1;
 int bFalse = 0;
 int gServerSock = 0;
-int gSeccompFuncs[20] = {SCMP_SYS(rt_sigreturn), SCMP_SYS(socket), SCMP_SYS(connect), SCMP_SYS(read), SCMP_SYS(write), SCMP_SYS(fstat), SCMP_SYS(clone), SCMP_SYS(exit)};
 unsigned char gBuffer[2048 + 4];
 
 void Error(char* str)
