@@ -8,7 +8,9 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <pthread.h>
+#include <signal.h>
 
 #define PORT 31337
 //#define DEBUG
@@ -18,6 +20,12 @@
 #else
 #define DEBUG_PRINT(x) (void)0
 #endif
+
+void zombie_handler()
+{
+    int status;
+    wait(&status);
+}
 
 void Error(char* str)
 {
@@ -348,6 +356,7 @@ int main()
     int addrLen = sizeof(addr);
     pthread_t threadId;
 
+    signal(SIGCHLD, (void *)zombie_handler);
     sem_init(&gRoomSema, 0, 1);
 
     if ((serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
