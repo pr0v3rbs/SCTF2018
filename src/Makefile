@@ -1,6 +1,6 @@
 all: chat_server chat_client
 CC=gcc
-CCFLAGS=-fno-stack-protector -static
+CCFLAGS=-fno-stack-protector -static -Wall
 
 chat_server: chat_server.o room_manager.o
 	$(CC) $(CCFLAGS) -o chat_server chat_server.o room_manager.o -lpthread

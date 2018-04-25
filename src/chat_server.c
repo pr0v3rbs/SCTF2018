@@ -14,9 +14,9 @@
 //#define DEBUG
 
 #ifdef DEBUG
-#define DEBUG_PRINT printf
+#define DEBUG_PRINT(x) printf x
 #else
-#define DEBUG_PRINT
+#define DEBUG_PRINT(x) (void)0
 #endif
 
 void Error(char* str)
@@ -63,23 +63,17 @@ void* ChatClientHandler(void* arg)
 
     while ((ret = Read(clientSock, (char*)&dataLen, 4)) == bTrue)
     {
-        DEBUG_PRINT("receive dataLen == %d\n", dataLen);
+        DEBUG_PRINT(("receive dataLen == %d\n", dataLen));
         if (dataLen > 2048)
             dataLen = 2048;
 
         ret = Read(clientSock, buffer, dataLen);
-        if (ret <= 0)
+        if (ret <= 0 || strncmp(buffer, "\xde\xad\xf0\x0d", 4)  == 0)
             break;
-
-        // check 0xdeadf00d and exit with bof vulnerability
-        if (strncmp(buffer, "\xde\xad\xf0\x0d", 4)  == 0)
-        {
-            break;
-        }
 
         if (strncmp(buffer, "/bye", 4) == 0) // not exit
         {
-            DEBUG_PRINT("bye received\n");
+            DEBUG_PRINT(("bye received\n"));
             send(clientSock, "\xde\xad\xf0\x0d", 4, 0);
             ci->isClosed = bTrue;
             continue;
@@ -98,8 +92,7 @@ void* ChatClientHandler(void* arg)
     if (ret == 0)
     {
         ci->isClosed = bTrue;
-        DEBUG_PRINT("socket close chat server\n");
-        //fflush(stdout);
+        DEBUG_PRINT(("socket close chat server\n"));
     }
     // recv error, ret < 0
     else if (ci->isClosed == bFalse)
@@ -108,11 +101,13 @@ void* ChatClientHandler(void* arg)
         ci->isClosed = bTrue;
     }
     // else: client sent '/bye'
+
+    return 0;
 }
 
 int ChatHandler(int* sock1, int* sock2)
 {
-    unsigned char name[128];
+    char name[128];
     unsigned char chat[1024];
     struct ClientInfo ci1;
     struct ClientInfo ci2;
@@ -125,7 +120,7 @@ int ChatHandler(int* sock1, int* sock2)
     ci2.sock = *sock2;
     ci2.isClosed = bFalse;
 
-    DEBUG_PRINT("ChatHandler %p %d %p %d\n", sock1, *sock1, sock2, *sock2);
+    DEBUG_PRINT(("ChatHandler %ls %d %ls %d\n", sock1, *sock1, sock2, *sock2));
     if (pthread_create(&threadId, NULL, ChatClientHandler, (void*)&ci1) < 0)
         Error("pthread_create ChatClient 1 failed!");
 
@@ -136,7 +131,7 @@ int ChatHandler(int* sock1, int* sock2)
     {
         sem_wait(&gChatSenderSema);
         memcpy(chat, gChatData, gDataSize);
-	DEBUG_PRINT("gDataSize = %d\n", gDataSize);
+        DEBUG_PRINT(("gDataSize = %d\n", gDataSize));
 
         if (gSender == ci1.sock)
         {
@@ -160,33 +155,32 @@ int ChatHandler(int* sock1, int* sock2)
                 send(ci1.sock, "\n", 1, 0);
             }
         }
-        // TODO: if we can't assume the socket fd number, then we need to write
-        // fd number at this point
         sem_post(&gChatReceiverSema);
     }
 
-    DEBUG_PRINT("chat ended!\n");
+    DEBUG_PRINT(("chat ended!\n"));
 
     sem_destroy(&gChatSenderSema);
     sem_destroy(&gChatReceiverSema);
+
+    return 0;
 }
 
 int MakeRoom(int clientSock, char* roomName)
 {
     char result = bTrue;
     struct Room* room = NULL;
-    DEBUG_PRINT("make room %s\n", roomName);
+    DEBUG_PRINT(("make room %s\n", roomName));
 
     sem_wait(&gRoomSema);
-    // TODO: need to change 1, 0
     if (FindRoom(roomName) != NULL)
     {
-        DEBUG_PRINT("room already exist!\n");
+        DEBUG_PRINT(("room already exist!\n"));
         result = bFalse;
     }
     else
     {
-        DEBUG_PRINT("InsertRoom %s\n", roomName);
+        DEBUG_PRINT(("InsertRoom %s\n", roomName));
         if ((room = InsertRoom(clientSock, roomName)) == NULL)
             result = bFalse;
     }
@@ -198,13 +192,13 @@ int MakeRoom(int clientSock, char* roomName)
         // wait 10 secs until someone join my room
         for (int i = 0; i < 10; i++)
         {
-            DEBUG_PRINT("wait joiner\n");
+            DEBUG_PRINT(("wait joiner\n"));
             sleep(1);
 
             sem_wait(&gRoomSema);
             if (room->connectionState == 1)
             {
-                DEBUG_PRINT("joined!\n");
+                DEBUG_PRINT(("joined!\n"));
                 room->connectionState = 2;
                 sem_post(&gRoomSema);
                 break;
@@ -212,7 +206,7 @@ int MakeRoom(int clientSock, char* roomName)
 
             if (i == 9)
             {
-                DEBUG_PRINT("No jointer... remove room\n");
+                DEBUG_PRINT(("No jointer... remove room\n"));
                 RemoveRoom(room);
                 room = NULL;
                 result = bFalse;
@@ -231,15 +225,15 @@ int JoinRoom(int clientSock, char* roomName)
 {
     struct Room* room;
     char result = bFalse;
-    DEBUG_PRINT("join room %s\n", roomName);
+    DEBUG_PRINT(("join room %s\n", roomName));
 
     sem_wait(&gRoomSema);
-    if (room = FindRoom(roomName))
+    if ((room = FindRoom(roomName)) != NULL)
     {
-        DEBUG_PRINT("room found!\n");
+        DEBUG_PRINT(("room found!\n"));
         if (room->connectionState == 0)
         {
-            DEBUG_PRINT("checked!\n");
+            DEBUG_PRINT(("checked!\n"));
             room->connectionState = 1;
             result = bTrue;
         }
@@ -250,7 +244,7 @@ int JoinRoom(int clientSock, char* roomName)
 
     if (result == bTrue)
     {
-        DEBUG_PRINT("found room\n");
+        DEBUG_PRINT(("found room\n"));
         result = bFalse;
         // wait owner state
         for (int i = 0; i < 3; i++)
@@ -271,17 +265,17 @@ int JoinRoom(int clientSock, char* roomName)
 
             if (fork() == 0)
             {
-                DEBUG_PRINT("forkd with sockets %p %d %p %d\n", &ownerSock, ownerSock, &clientSock, clientSock);
+                DEBUG_PRINT(("forkd with sockets %ls %d %ls %d\n", &ownerSock, ownerSock, &clientSock, clientSock));
                 ChatHandler(&ownerSock, &clientSock);
 
                 if (ownerSock != -1)
                 {
-                    DEBUG_PRINT("ownerSock close\n");
+                    DEBUG_PRINT(("ownerSock close\n"));
                     close(ownerSock);
                 }
                 if (clientSock != -1)
                 {
-                    DEBUG_PRINT("clientSock close\n");
+                    DEBUG_PRINT(("clientSock close\n"));
                     close(clientSock);
                 }
             }
@@ -294,7 +288,7 @@ int JoinRoom(int clientSock, char* roomName)
     }
     else
     {
-        DEBUG_PRINT("find room failed!\n");
+        DEBUG_PRINT(("find room failed!\n"));
     }
 
     return result;
@@ -312,29 +306,29 @@ void* ClientHandler(void* argv)
         buffer[readSize] = '\0';
         if (buffer[0] == 1)
         {
-            DEBUG_PRINT("make socket address %p %d \n", &clientSock, clientSock);
+            DEBUG_PRINT(("make socket address %ls %d \n", &clientSock, clientSock));
             if ((result = MakeRoom(clientSock, &buffer[1])) == bTrue)
             {
-                DEBUG_PRINT("make success\n");
+                DEBUG_PRINT(("make success\n"));
                 break;
             }
         }
         else if (buffer[0] == 2)
         {
-            DEBUG_PRINT("join socket address %p %d\n", &clientSock, clientSock);
+            DEBUG_PRINT(("join socket address %ls %d\n", &clientSock, clientSock));
             if ((result = JoinRoom(clientSock, &buffer[1])) == bTrue)
             {
-                DEBUG_PRINT("join success\n");
+                DEBUG_PRINT(("join success\n"));
                 break;
             }
         }
     }
 
-    DEBUG_PRINT("escape while!\n");
+    DEBUG_PRINT(("escape while!\n"));
 
     if (readSize == 0)
     {
-        DEBUG_PRINT("socket close %p\n", &clientSock);
+        DEBUG_PRINT(("socket close %ls\n", &clientSock));
         close(clientSock);
         clientSock = -1;
     }
@@ -342,6 +336,8 @@ void* ClientHandler(void* argv)
     {
         perror("recv failed!");
     }
+
+    return 0;
 }
 
 int main()
@@ -372,11 +368,11 @@ int main()
 
     while (1)
     {
-        DEBUG_PRINT("wait client!!!\n");
+        DEBUG_PRINT(("wait client!!!\n"));
         if ((clientSock = accept(serverSock, (struct sockaddr*)&addr, (socklen_t*)&addrLen)) < 0)
             Error("accept failed!");
 
-        DEBUG_PRINT("client accepted!\n");
+        DEBUG_PRINT(("client accepted!\n"));
 
         if (pthread_create(&threadId, NULL, ClientHandler, (void*)&clientSock) < 0)
             Error("pthread_create failed!");

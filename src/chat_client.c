@@ -47,7 +47,7 @@ void PrintMenu()
     printf(">>");
 }
 
-int ReadLine(char* buffer, int maxLen)
+int ReadLine(unsigned char* buffer, int maxLen)
 {
     int readSize = 0;
     int readLen = 0;
@@ -99,6 +99,8 @@ void* ChatReceiver(void* arg)
         }
         write(1, buffer, readSize);
     }
+
+    return 0;
 }
 
 void Chat()
@@ -116,7 +118,7 @@ void Chat()
         readLen = ReadLine(&gBuffer[4], 1024);
         *((int*)&gBuffer[0]) = readLen;
         write(gServerSock, gBuffer, readLen + 4);
-        if (strncmp(&gBuffer[4], "/bye", 4) == 0)
+        if (memcmp(&gBuffer[4], "/bye", 4) == 0)
             break;
     }
 
@@ -132,7 +134,7 @@ void Chat()
     gServerSock = 0;
 }
 
-int MakeRoom()
+void MakeRoom()
 {
     int readLen = 0;
 
@@ -163,7 +165,7 @@ int MakeRoom()
     }
 }
 
-int JoinRoom()
+void JoinRoom()
 {
     int readLen = 0;
 
@@ -199,7 +201,7 @@ int main()
     while (isExit == bFalse)
     {
         PrintMenu();
-        ReadLine(buf, 10);
+        ReadLine((unsigned char*)buf, 10);
         menu = atoi(buf);
 
         if (menu < 3 && gServerSock == 0)
