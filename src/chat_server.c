@@ -21,7 +21,7 @@
 #define DEBUG_PRINT(x) (void)0
 #endif
 
-void zombie_handler()
+void ChildHandler()
 {
     int status;
     wait(&status);
@@ -356,7 +356,7 @@ int main()
     int addrLen = sizeof(addr);
     pthread_t threadId;
 
-    signal(SIGCHLD, (void *)zombie_handler);
+    signal(SIGCHLD, (void*)ChildHandler);
     sem_init(&gRoomSema, 0, 1);
 
     if ((serverSock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
