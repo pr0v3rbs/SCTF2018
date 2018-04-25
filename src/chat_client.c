@@ -6,7 +6,6 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <seccomp.h>
 
 int bTrue = 1;
 int bFalse = 0;

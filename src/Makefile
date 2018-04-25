@@ -12,7 +12,7 @@ room_manager.o: room_manager.c
 	$(CC) $(CCFLAGS) -c -o room_manager.o room_manager.c
 
 chat_client: chat_client.c
-	$(CC) $(CCFLAGS) -o chat_client chat_client.c -lpthread -lseccomp
+	$(CC) $(CCFLAGS) -o chat_client chat_client.c -lpthread
 
 clean:
 	rm chat_server chat_client *.o
