@@ -7,7 +7,7 @@ I made a super secure chat service, connects to chat server by using remote clie
 The flag is in the chat server.
 
 (service address)
-(binary & libc download link)
+(binary download link)
 ```
 
 ## How to run
