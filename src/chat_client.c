@@ -110,7 +110,7 @@ void Chat()
     if (pthread_create(&threadId, NULL, ChatReceiver, NULL) < 0)
         Error("pthread_create ChatReceiver failed!");
 
-    puts("=====Chat Start=====");
+    puts("==========Chat Start==========");
 
     while (bTrue)
     {
@@ -122,12 +122,11 @@ void Chat()
     }
 
     pthread_join(threadId, NULL);
-    sleep(1);
 
     // send 0xdeadf00d to server
     write(gServerSock, "\x04\x00\x00\x00\xde\xad\xf0\x0d", 8);
 
-    puts("=====Chat Ended=====");
+    puts("==========Chat Ended==========");
 
     close(gServerSock);
     gServerSock = 0;

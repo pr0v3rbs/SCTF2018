@@ -7,7 +7,8 @@ SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
 
 all: $(EXECUTABLES)
-	strip $(EXECUTABLES)
+	strip -Nmain -NMakeRoom -NError -NChatReceiver -NJoinRoom -NChat -NReadLine -NConnect -NPrintLogo -NPrintMenu -NgServerSock -NbFalse -NbTrue -NgBuffer chat_client
+	strip -Nmain -NChildHandler -NError -NRead -NChatClientHandler -NChatHandler -NMakeRoom -NJoinRoom -NClientHandler -NInsertRoom -NFindRoom -NRemoveRoom -NgRoomHead -NgRoomSema -NgChatSenderSema -NgChatReceiverSema -NgChatData -NgDataSize -NgSender -NbTrue -NbFalse chat_server
 
 chat_server: chat_server.o room_manager.o
 	$(CC) $(CCFLAGS) -o chat_server chat_server.o room_manager.o $(LIBS)
