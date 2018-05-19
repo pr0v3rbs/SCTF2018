@@ -51,7 +51,7 @@ def extract_file(session):
     return data
 
 def main():
-    pcapfile = sys.argv[1]
+    pcapfile = 'problem.pcap'
     c = 'host 192.168.0.107'
     s = 'host 192.168.0.128'
     os.system('tcpdump -r {} -w {} "(src {} && dst {}) || (src {} && dst {})"'.format(pcapfile, "filtered_" + pcapfile, c, s, s, c))
