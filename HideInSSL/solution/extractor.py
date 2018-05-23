@@ -66,7 +66,19 @@ def main():
         if syn_index != -1:
             fin_index = data.find(FIN_SIG, syn_index)
             file_data = extract_file(data[syn_index:fin_index])
-            open(str(file_index).rjust(2, '0'), 'w').write(file_data)
+            if file_data[:16].find('PNG') != -1:
+                ext = '.png'
+            elif file_data[:16].find('\x49\x49\x2A\x00') != -1:
+                ext = '.tif'
+            elif file_data[:16].find('GIF89a') != -1:
+                ext = '.gif'
+            elif file_data[:16].find('JFIF') != -1:
+                ext = '.jpg'
+            elif file_data[:16].find('BM6') != -1:
+                ext = '.bmp'
+            else:
+                ext = ''
+            open(str(file_index).rjust(2, '0') + ext, 'w').write(file_data)
             file_index += 1
         else:
             break
