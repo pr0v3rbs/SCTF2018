@@ -2,7 +2,6 @@
 # client xinetd
 /etc/init.d/xinetd start;
 # server
-cd /home/chat_server/
 while ( true ); do
-    ./chat_server
+    su chat_server -c /home/chat_server/chat_server
 done
