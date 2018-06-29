@@ -3,7 +3,7 @@
 ## Description
 
 ```
-Pictures are hidden in SSL.
+Hacker stole the flag through the SSL protocol.
 (pcap download link)
 ```
 
