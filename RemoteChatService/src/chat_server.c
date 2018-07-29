@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 #include <pthread.h>
 #include <signal.h>
 
@@ -355,6 +356,7 @@ int main()
     struct sockaddr_in addr;
     int addrLen = sizeof(addr);
     pthread_t threadId;
+    int mode = 0; // blocking mode
 
     signal(SIGCHLD, (void*)ChildHandler);
     sem_init(&gRoomSema, 0, 1);
@@ -382,6 +384,8 @@ int main()
             Error("accept failed!");
 
         DEBUG_PRINT(("client accepted!\n"));
+
+        ioctl(clientSock, FIONBIO, &mode);
 
         if (pthread_create(&threadId, NULL, ClientHandler, (void*)&clientSock) < 0)
             Error("pthread_create failed!");
