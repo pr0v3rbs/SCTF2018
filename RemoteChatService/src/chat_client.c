@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -69,6 +70,7 @@ int ReadLine(unsigned char* buffer, int maxLen)
 void Connect()
 {
     struct sockaddr_in addr;
+    int mode = 0; // blocking mode
 
     if ((gServerSock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
         Error("socket failed!");
@@ -82,6 +84,8 @@ void Connect()
 
     if (connect(gServerSock, (struct sockaddr*)&addr, sizeof(addr)) < 0)
         Error("connect failed!");
+
+    ioctl(gServerSock, FIONBIO, &mode);
 }
 
 void* ChatReceiver(void* arg)
