@@ -4,7 +4,7 @@
 
 ```
 I made a super secure chat service, connects to chat server by using the remote client.
-The flag is in the chat server.
+You need to exploit the chat server to get the flag.
 
 (service address)
 (binary download link)

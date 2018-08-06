@@ -24,6 +24,7 @@ RUN useradd -m $PROB
 WORKDIR /home/$PROB
 
 COPY $PROB /home/$PROB/$PROB
+COPY ./client_flag /home/$PROB/flag
 RUN chown -R root:$PROB /home/$PROB
 RUN chmod 750 /home/$PROB
 RUN chmod 750 /home/$PROB/$PROB
